@@ -94,43 +94,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 $search = trim($_GET['q'] ?? '');
-// Escape ký tự đặc biệt của LIKE để tìm đúng nghĩa đen
+$statusFilter = trim($_GET['status'] ?? '');
+$locationFilter = trim($_GET['location'] ?? '');
+$allowedStatuses = ['Sắp diễn ra','Đang diễn ra','Đã kết thúc'];
+if (!in_array($statusFilter, $allowedStatuses, true)) $statusFilter = '';
 $like = '%' . addcslashes($search, '%_\\') . '%';
-
-$stmt = $pdo->prepare(
-    "SELECT e.*,
-        (SELECT COUNT(*) FROM registrations r
-         WHERE r.event_id = e.id) AS reg_count,
-        (SELECT COUNT(*) FROM registrations r2
-         WHERE r2.event_id = e.id AND r2.user_id = ?) AS joined
-     FROM events e
-     WHERE e.title LIKE ?
-     ORDER BY e.event_date DESC"
-);
-$stmt->execute([$userId, $like]);
+$locationLike = '%' . addcslashes($locationFilter, '%_\\') . '%';
+$sql = "SELECT e.*, (SELECT COUNT(*) FROM registrations r WHERE r.event_id=e.id) AS reg_count, (SELECT COUNT(*) FROM registrations r2 WHERE r2.event_id=e.id AND r2.user_id=?) AS joined FROM events e WHERE e.title LIKE ? AND e.location LIKE ?";
+$params = [$userId, $like, $locationLike];
+if ($statusFilter !== '') { $sql .= ' AND e.status = ?'; $params[] = $statusFilter; }
+$sql .= ' ORDER BY e.event_date DESC';
+$stmt = $pdo->prepare($sql); $stmt->execute($params);
 $events = $stmt->fetchAll();
 require 'includes/header.php';
 ?>
-<div class="d-flex justify-content-between mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 events-page-heading">
     <h2 class="page-title">Danh sách sự kiện</h2>
-    <a href="event_form.php" class="btn btn-primary">+ Tạo sự kiện</a>
+    <a href="event_form.php" class="btn btn-primary btn-create-event">+ Tạo sự kiện</a>
 </div>
 <?php flash_render(); ?>
-<form method="get" class="mb-4">
-    <div class="input-group" style="max-width:500px">
-        <input class="form-control" name="q"
-               placeholder="Tìm kiếm sự kiện..."
-               value="<?= h($search) ?>">
-        <button class="btn btn-primary">Tìm kiếm</button>
-    </div>
+<form method="get" class="event-search-toolbar mb-4">
+    <div class="event-search-field"><input class="form-control" name="q" placeholder="Tìm theo tên sự kiện..." value="<?= h($search) ?>"></div>
+    <div class="event-location-field"><input class="form-control" name="location" placeholder="Địa điểm" value="<?= h($locationFilter) ?>"></div>
+    <div class="event-status-field"><select class="form-select" name="status"><option value="">Mọi trạng thái</option><?php foreach ($allowedStatuses as $st): ?><option value="<?= h($st) ?>" <?= $statusFilter===$st?'selected':'' ?>><?= h($st) ?></option><?php endforeach; ?></select></div>
+    <div class="event-search-actions"><button class="btn btn-primary" type="submit">Lọc</button><a class="btn btn-outline-secondary" href="events.php">Xóa</a></div>
 </form>
-<div class="row g-3">
+<div class="row g-3 event-grid">
 <?php foreach ($events as $e):
     $past = $e['status'] === 'Đã kết thúc'
          || strtotime($e['event_date']) < time();
     $full = (int)$e['reg_count'] >= (int)$e['capacity'];
+    $isEventOrganizer = (int)($e['created_by'] ?? 0) === $userId;
+    $isEventParticipant = !$isEventOrganizer && (int)$e['joined'] > 0;
 ?>
-    <div class="col-md-6 col-xl-4">
+    <div class="col-md-6 col-xl-4 event-grid-item">
         <div class="card event-card">
             <?php if (!empty($e['image_path'])): ?>
                 <div class="event-banner has-event-image">
@@ -139,31 +136,38 @@ require 'includes/header.php';
             <?php else: ?>
                 <div class="event-banner"><span aria-hidden="true">✦</span></div>
             <?php endif; ?>
-            <div class="p-4">
+            <div class="p-4 event-card-body">
                 <span class="badge badge-soft mb-2"><?= h($e['status']) ?></span>
+                <?php if ($isEventOrganizer): ?>
+                    <span class="badge mb-2" style="background:#e1efff;color:#2868a8">Organizer · Sự kiện của bạn</span>
+                <?php elseif ($isEventParticipant): ?>
+                    <span class="badge mb-2" style="background:#e1f5e9;color:#237447">Participant · Đã đăng ký</span>
+                <?php endif; ?>
                 <h5 class="fw-bold"><?= h($e['title']) ?></h5>
                 <p class="muted small">
                     📅 <?= date('d/m/Y H:i', strtotime($e['event_date'])) ?>
                 </p>
                 <p class="muted small">📍 <?= h($e['location']) ?></p>
-                <p><?= h($e['description']) ?></p>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="small">
-                        👥 <?= (int)$e['reg_count'] ?>/<?= (int)$e['capacity'] ?>
+                <div class="event-description-wrap">
+                    <p class="event-description"><?= h(trim((string)($e['description'] ?? ''))) ?></p>
+                    <button type="button" class="event-description-toggle" aria-expanded="false" hidden>… Xem thêm</button>
+                </div>
+                <div class="event-card-footer">
+                    <span class="event-participant-count" title="Số người đã đăng ký">
+                        <span aria-hidden="true">👥</span>
+                        <strong><?= (int)$e['reg_count'] ?>/<?= (int)$e['capacity'] ?></strong>
                     </span>
                     <?php if ($admin || (int)($e['created_by'] ?? 0) === $userId): ?>
-                        <span>
-                            <a href="event_form.php?id=<?= (int)$e['id'] ?>">Sửa</a>
-                            <form method="post" class="d-inline ms-2"
-                                  onsubmit="return confirmDelete()">
+                        <div class="event-admin-actions">
+                            <a class="event-action-edit" href="event_form.php?id=<?= (int)$e['id'] ?>">Sửa</a>
+                            <form method="post" onsubmit="return confirmDelete()">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="event_id"
-                                       value="<?= (int)$e['id'] ?>">
-                                <button class="btn btn-link text-danger p-0">Xóa</button>
+                                <input type="hidden" name="event_id" value="<?= (int)$e['id'] ?>">
+                                <button class="event-action-delete" type="submit">Xóa</button>
                             </form>
-                            <a class="ms-2" href="participants.php?event_id=<?= (int)$e['id'] ?>">Người tham gia</a>
-                        </span>
+                            <a class="event-action-participants" href="participants.php?event_id=<?= (int)$e['id'] ?>">Người tham gia</a>
+                        </div>
                     <?php elseif ($e['joined']): ?>
                         <span class="badge text-bg-success">Đã đăng ký</span>
                     <?php elseif ($past): ?>
@@ -171,11 +175,10 @@ require 'includes/header.php';
                     <?php elseif ($full): ?>
                         <span class="badge text-bg-warning">Hết chỗ</span>
                     <?php else: ?>
-                        <form method="post">
+                        <form method="post" class="event-register-form">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="register">
-                            <input type="hidden" name="event_id"
-                                   value="<?= (int)$e['id'] ?>">
+                            <input type="hidden" name="event_id" value="<?= (int)$e['id'] ?>">
                             <button class="btn btn-sm btn-primary">Đăng ký</button>
                         </form>
                     <?php endif; ?>
@@ -186,8 +189,56 @@ require 'includes/header.php';
 <?php endforeach; ?>
 <?php if (!$events): ?>
     <div class="col-12">
-        <div class="card empty">Không tìm thấy sự kiện.</div>
+        <div class="card empty text-center py-5">
+            <div class="mb-3" aria-hidden="true" style="font-size:2.5rem">📅</div>
+            <h5 class="fw-bold mb-2">
+                <?= $search !== '' ? 'Không tìm thấy sự kiện phù hợp' : 'Chưa có sự kiện nào' ?>
+            </h5>
+            <p class="muted mb-3">
+                <?= $search !== ''
+                    ? 'Thử thay đổi từ khóa tìm kiếm hoặc xóa nội dung tìm kiếm.'
+                    : 'Các sự kiện do bạn hoặc người dùng khác tạo sẽ xuất hiện tại đây.' ?>
+            </p>
+            <?php if ($search === ''): ?>
+                <div>
+                    <a href="event_form.php" class="btn btn-primary">+ Tạo sự kiện đầu tiên</a>
+                </div>
+            <?php else: ?>
+                <div>
+                    <a href="events.php" class="btn btn-outline-primary">Xóa tìm kiếm</a>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 <?php endif; ?>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.event-grid-item .event-description-wrap').forEach(function (wrap) {
+        var description = wrap.querySelector('.event-description');
+        var toggle = wrap.querySelector('.event-description-toggle');
+        if (!description || !toggle || !description.textContent.trim()) return;
+
+        // Đo bằng bản sao không bị line-clamp giới hạn.
+        var measure = description.cloneNode(true);
+        measure.classList.remove('is-expanded');
+        measure.style.cssText += ';position:fixed;left:-99999px;top:0;width:' +
+            description.getBoundingClientRect().width + 'px;height:auto;max-height:none;' +
+            'display:block;overflow:visible;-webkit-line-clamp:unset;line-clamp:unset;' +
+            'visibility:hidden;';
+        document.body.appendChild(measure);
+        var fullHeight = measure.getBoundingClientRect().height;
+        measure.remove();
+
+        var lineHeight = parseFloat(getComputedStyle(description).lineHeight) || 24;
+        if (fullHeight > lineHeight * 3 + 2) toggle.hidden = false;
+
+        toggle.addEventListener('click', function () {
+            var expanded = description.classList.toggle('is-expanded');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            toggle.textContent = expanded ? 'Thu gọn' : '… Xem thêm';
+        });
+    });
+});
+</script>
 <?php require 'includes/footer.php'; ?>

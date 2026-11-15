@@ -1,21 +1,29 @@
 <?php
 require_once 'config/database.php';
 require_once 'config/auth.php';
-require_admin();
-$rows = $pdo->query(
-    "SELECT r.*, u.full_name, u.email, e.title
-    FROM registrations r
-    JOIN users u ON u.id = r.user_id
-    JOIN events e ON e.id = r.event_id
-    ORDER BY r.registered_at DESC"
-)->fetchAll();
+require_login();
+$userId = (int)$_SESSION['user']['id'];
+$isAdmin = ($_SESSION['user']['role'] ?? '') === 'admin';
+$sql = "SELECT r.*, u.full_name, u.email, e.title
+        FROM registrations r
+        JOIN users u ON u.id = r.user_id
+        JOIN events e ON e.id = r.event_id";
+$params = [];
+if (!$isAdmin) {
+    $sql .= " WHERE e.created_by = ?";
+    $params[] = $userId;
+}
+$sql .= " ORDER BY r.registered_at DESC";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$rows = $stmt->fetchAll();
 require 'includes/header.php';
 ?>
 <h2 class="page-title mb-2">
     Quản lý đăng ký
 </h2>
 <p class="muted mb-4">
-    Danh sách người tham gia đã đăng ký sự kiện.
+    Danh sách đăng ký của toàn hệ thống hoặc các sự kiện do bạn tổ chức.
 </p>
 <div class="card p-3">
     <div class="table-responsive">

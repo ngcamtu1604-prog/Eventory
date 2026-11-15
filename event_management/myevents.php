@@ -34,7 +34,7 @@ require 'includes/header.php';
             <tbody>
             <?php foreach ($rows as $r): ?>
                 <tr>
-                    <td><?= h($r['title']) ?></td>
+                    <td><?= h($r['title']) ?><div class="mt-1"><span class="badge" style="background:#e1f5e9;color:#237447">Participant</span></div></td>
                     <td>
                         <?= date('d/m/Y H:i', strtotime($r['event_date'])) ?>
                     </td>

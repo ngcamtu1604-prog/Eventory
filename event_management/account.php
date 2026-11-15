@@ -157,9 +157,6 @@ $user = getAccountUser($pdo, $userId);
 $_SESSION['user']['name'] = $user['full_name'];
 $_SESSION['user']['avatar'] = $user['avatar_path'] ?? '';
 
-$roleLabel = $user['role'] === 'admin'
-    ? 'Quản trị viên'
-    : 'Người tham gia';
 $avatarLetter = function_exists('mb_substr')
     ? mb_strtoupper(mb_substr($user['full_name'], 0, 1, 'UTF-8'), 'UTF-8')
     : strtoupper(substr($user['full_name'], 0, 1));
@@ -194,9 +191,6 @@ require 'includes/header.php';
             <h2>Tài khoản của tôi</h2>
             <p>Quản lý hồ sơ cá nhân và bảo mật tài khoản.</p>
         </div>
-        <span class="role-badge">
-            ✦ <?= h($roleLabel) ?>
-        </span>
     </div>
     <?php flash_render(); ?>
     <!-- THẺ HỒ SƠ -->
@@ -212,9 +206,6 @@ require 'includes/header.php';
             <div>
                 <h3><?= h($user['full_name']) ?></h3>
                 <p><?= h($user['email']) ?></p>
-                <span class="profile-role">
-                    <?= h($roleLabel) ?>
-                </span>
                 <small>
                     Thành viên từ
                     <?= date('d/m/Y', strtotime($user['created_at'])) ?>
@@ -403,6 +394,12 @@ require 'includes/header.php';
     font-size: 28px;
     font-weight: 750;
     margin: 5px 0;
+}
+html[data-theme="light"] .account-heading h2 {
+    color: #51458f;
+}
+html[data-theme="dark"] .account-heading h2 {
+    color: #ffffff;
 }
 .account-heading p {
     color: #b7acd0;

@@ -2,7 +2,7 @@
 require_once 'config/database.php';
 require_once 'config/auth.php';
 require_once 'includes/security.php';
-require_login();
+require_role(['admin', 'user']);
 
 $userId = (int)$_SESSION['user']['id'];
 $isAdmin = ($_SESSION['user']['role'] ?? '') === 'admin';

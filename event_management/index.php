@@ -58,6 +58,22 @@ require 'includes/header.php';
     </form>
 </section>
 
+<?php if (($_SESSION['user']['role'] ?? '') === 'admin'): ?>
+<?php
+$adminStats = [
+ 'events' => (int)$pdo->query('SELECT COUNT(*) FROM events')->fetchColumn(),
+ 'users' => (int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn(),
+ 'registrations' => (int)$pdo->query('SELECT COUNT(*) FROM registrations')->fetchColumn(),
+ 'upcoming' => (int)$pdo->query("SELECT COUNT(*) FROM events WHERE event_date >= NOW() AND status <> 'Đã kết thúc'")->fetchColumn()
+];
+?>
+<section class="row g-3 mb-4" aria-label="Tổng quan quản trị">
+ <div class="col-6 col-xl-3"><div class="card stat-card"><div class="muted">Tổng sự kiện</div><div class="stat-number"><?= $adminStats['events'] ?></div></div></div>
+ <div class="col-6 col-xl-3"><div class="card stat-card"><div class="muted">Tài khoản</div><div class="stat-number"><?= $adminStats['users'] ?></div></div></div>
+ <div class="col-6 col-xl-3"><div class="card stat-card"><div class="muted">Lượt đăng ký</div><div class="stat-number"><?= $adminStats['registrations'] ?></div></div></div>
+ <div class="col-6 col-xl-3"><div class="card stat-card"><div class="muted">Sự kiện sắp diễn ra</div><div class="stat-number"><?= $adminStats['upcoming'] ?></div></div></div>
+</section>
+<?php endif; ?>
 <section class="featured-section">
     <div class="section-heading">
         <h2><?= $search !== '' ? 'Kết quả tìm kiếm' : 'Sự kiện nổi bật' ?></h2>

@@ -2,10 +2,10 @@
 require_once __DIR__ . '/../config/auth.php';
 
 $userName = $_SESSION['user']['name'] ?? 'Người dùng';
-$userRole = $_SESSION['user']['role'] ?? 'participant';
+$userRole = $_SESSION['user']['role'] ?? 'user';
 $userEmail = $_SESSION['user']['email'] ?? '';
 $userAvatar = $_SESSION['user']['avatar'] ?? '';
-$roleLabel = ($userRole === 'admin') ? 'Quản trị viên' : 'Người tham gia';
+$roleLabel = ($userRole === 'admin') ? 'Admin · Quản trị hệ thống' : 'User · Tài khoản thông thường';
 $avatarLetter = function_exists('mb_substr')
     ? mb_strtoupper(mb_substr($userName, 0, 1, 'UTF-8'), 'UTF-8')
     : strtoupper(substr($userName, 0, 1));
@@ -41,31 +41,19 @@ function eventory_sidebar_icon($name) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EVENTORY</title>
+    <script>
+    (function () {
+        try {
+            var theme = localStorage.getItem('eventory_theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+    })();
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/style.css">
-    <style>
-        .account-menu{position:relative}
-        .account-trigger{display:flex;align-items:center;gap:10px;padding:5px 9px;border:0;border-radius:30px;color:#f7f3ff;background:transparent;transition:background .2s}
-        .account-trigger:hover,.account-trigger[aria-expanded="true"]{background:rgba(255,255,255,.09)}
-        .account-avatar{width:39px;height:39px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;border-radius:50%;background:#e5ddff;color:#30205d;font-size:16px;font-weight:700;border:2px solid rgba(255,255,255,.55)}
-        .account-avatar img{width:100%;height:100%;object-fit:cover}
-        .account-chevron{font-size:11px;color:#c9b8f4;transition:transform .2s}
-        .account-trigger[aria-expanded="true"] .account-chevron{transform:rotate(180deg)}
-        .account-dropdown{position:absolute;top:calc(100% + 12px);right:0;z-index:1050;width:310px;padding:12px;border:1px solid #e8e0ff;border-radius:18px;background:#fff;color:#292044;box-shadow:0 12px 35px rgba(12,8,35,.28);display:none}
-        .account-dropdown.show{display:block;animation:accountFade .16s ease-out}
-        @keyframes accountFade{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-        .account-profile{display:flex;align-items:center;gap:12px;padding:12px 10px 16px}
-        .account-avatar-large{width:58px;height:58px;font-size:21px;border:0}
-        .account-profile-name{font-size:16px;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
-        .account-profile-email{margin-top:3px;color:#817995;font-size:13px;overflow-wrap:anywhere}
-        .account-role{display:inline-block;margin-top:5px;padding:3px 9px;border-radius:20px;background:#f0ebff;color:#6744b7;font-size:11px;font-weight:600}
-        .account-divider{height:1px;margin:5px 0 9px;background:#eeeaf5}
-        .account-link{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;color:#33294c;text-decoration:none;font-size:14px;transition:background .15s}
-        .account-link:hover{background:#f4f0ff;color:#6744b7}
-        .account-link-icon{width:22px;text-align:center;font-size:17px}
-        .account-link.logout{color:#c03955}
-        .account-link.logout:hover{background:#fff0f3;color:#a52d45}
-    </style>
+    <link rel="stylesheet" href="assets/style.css?v=eventory-final-cards-email-1">
+
 </head>
 <body>
 <div class="app-shell">
@@ -107,12 +95,12 @@ function eventory_sidebar_icon($name) {
                         <a class="sidebar-link<?= sidebar_active('checkin.php', $currentPage) ?>" href="checkin.php">
                             <span class="sidebar-icon"><?= eventory_sidebar_icon('check') ?></span><span>Check-in / Điểm danh</span>
                         </a>
+                        <a class="sidebar-link<?= sidebar_active('registration.php', $currentPage) ?>" href="registration.php">
+                            <span class="sidebar-icon"><?= eventory_sidebar_icon('list') ?></span><span>Đăng ký & vé</span>
+                        </a>
                         <?php if ($userRole === 'admin'): ?>
                             <a class="sidebar-link<?= sidebar_active('manage.php', $currentPage) ?>" href="manage.php">
                                 <span class="sidebar-icon"><?= eventory_sidebar_icon('mic') ?></span><span>Diễn giả & ban tổ chức</span>
-                            </a>
-                            <a class="sidebar-link<?= sidebar_active('registration.php', $currentPage) ?>" href="registration.php">
-                                <span class="sidebar-icon"><?= eventory_sidebar_icon('list') ?></span><span>Đăng ký & vé</span>
                             </a>
                         <?php endif; ?>
                     </nav>
@@ -139,10 +127,10 @@ function eventory_sidebar_icon($name) {
                         <a class="sidebar-link<?= sidebar_active('survey_admin.php', $currentPage) ?>" href="survey_admin.php">
                             <span class="sidebar-icon"><?= eventory_sidebar_icon('chart') ?></span><span>Khảo sát & đánh giá</span>
                         </a>
+                        <a class="sidebar-link<?= sidebar_active('reports.php', $currentPage) ?>" href="reports.php">
+                            <span class="sidebar-icon"><?= eventory_sidebar_icon('chart') ?></span><span>Báo cáo & thống kê</span>
+                        </a>
                         <?php if ($userRole === 'admin'): ?>
-                            <a class="sidebar-link<?= sidebar_active('reports.php', $currentPage) ?>" href="reports.php">
-                                <span class="sidebar-icon"><?= eventory_sidebar_icon('chart') ?></span><span>Báo cáo & thống kê</span>
-                            </a>
                             <a class="sidebar-link<?= sidebar_active('users.php', $currentPage) ?>" href="users.php">
                                 <span class="sidebar-icon"><?= eventory_sidebar_icon('shield') ?></span><span>Tài khoản & phân quyền</span>
                             </a>
@@ -216,4 +204,4 @@ function eventory_sidebar_icon($name) {
                     </div>
                 </div>
             </header>
-            <main class="workspace-main">
+            <main class="workspace-main<?= $currentPage === 'events.php' ? ' events-list-page' : '' ?>">

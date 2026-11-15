@@ -39,6 +39,7 @@ require 'includes/header.php';
                 <?php endif; ?>
                 <div class="p-4">
                     <span class="badge badge-soft mb-2"><?= h($event['status']) ?></span>
+                    <span class="badge mb-2" style="background:#e1efff;color:#2868a8">Organizer · Sự kiện do bạn tạo</span>
                     <h5 class="fw-bold"><?= h($event['title']) ?></h5>
                     <p class="muted small mb-2">📅 <?= date('d/m/Y H:i', strtotime($event['event_date'])) ?></p>
                     <p class="muted small mb-2">📍 <?= h($event['location']) ?></p>

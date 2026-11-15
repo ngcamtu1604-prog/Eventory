@@ -2,7 +2,7 @@
 require_once 'config/database.php';
 require_once 'config/auth.php';
 require_once 'includes/security.php';
-require_login();
+require_role(['admin', 'user']);
 
 $userId = (int)$_SESSION['user']['id'];
 $isAdmin = $_SESSION['user']['role'] === 'admin';
@@ -21,7 +21,13 @@ $event = [
     'image_path' => null
 ];
 if ($id) {
-    $stmt = $pdo->prepare("SELECT * FROM events WHERE id = ?");
+    $stmt = $pdo->prepare(
+        "SELECT e.*, s.name AS speaker_name, o.name AS organizer_name
+         FROM events e
+         LEFT JOIN speakers s ON s.id = e.speaker_id
+         LEFT JOIN organizers o ON o.id = e.organizer_id
+         WHERE e.id = ?"
+    );
     $stmt->execute([$id]);
     $found = $stmt->fetch();
     if (!$found) {
@@ -48,14 +54,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $status = 'Sắp diễn ra';
     }
 
-    $speaker = ($_POST['speaker_id'] ?? '') !== '' ? (int)$_POST['speaker_id'] : null;
-    $organizer = ($_POST['organizer_id'] ?? '') !== '' ? (int)$_POST['organizer_id'] : null;
+    // Người dùng nhập tên tự do; tìm bản ghi đã có hoặc tạo mới để lưu đúng FK.
+    $speakerName = trim($_POST['speaker_name'] ?? '');
+    $organizerName = trim($_POST['organizer_name'] ?? '');
+    $speaker = null;
+    $organizer = null;
 
     $newImagePath = null;
     $uploadedFile = $_FILES['event_image'] ?? null;
 	
     if ($title === '' || mb_strlen($title) > 200 || $location === '' || !$date || $capacity < 1) {
         $error = 'Vui lòng nhập tên sự kiện, thời gian, địa điểm và sức chứa hợp lệ.';
+    } elseif (mb_strlen($speakerName) > 150 || mb_strlen($organizerName) > 150) {
+        $error = 'Tên diễn giả và ban tổ chức không được vượt quá 150 ký tự.';
+    } elseif (DateTime::createFromFormat('Y-m-d\TH:i', $date) === false) {
+        $error = 'Thời gian sự kiện không hợp lệ.';
     } elseif ($uploadedFile && $uploadedFile['error'] !== UPLOAD_ERR_NO_FILE) {
         if ($uploadedFile['error'] !== UPLOAD_ERR_OK) {
             $error = 'Tải ảnh lên không thành công. Vui lòng thử lại.';
@@ -89,6 +102,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     if ($error === '') {
+        // Chuẩn hóa diễn giả và đơn vị tổ chức thành khóa ngoại hợp lệ.
+        if ($speakerName !== '') {
+            $find = $pdo->prepare('SELECT id FROM speakers WHERE name = ? LIMIT 1');
+            $find->execute([$speakerName]); $speaker = $find->fetchColumn();
+            if (!$speaker) { $add = $pdo->prepare('INSERT INTO speakers(name) VALUES(?)'); $add->execute([$speakerName]); $speaker = (int)$pdo->lastInsertId(); }
+        }
+        if ($organizerName !== '') {
+            $find = $pdo->prepare('SELECT id FROM organizers WHERE name = ? LIMIT 1');
+            $find->execute([$organizerName]); $organizer = $find->fetchColumn();
+            if (!$organizer) { $add = $pdo->prepare('INSERT INTO organizers(name) VALUES(?)'); $add->execute([$organizerName]); $organizer = (int)$pdo->lastInsertId(); }
+        }
         $eventDate = str_replace('T', ' ', $date);
         if (strlen($eventDate) === 16) {
             $eventDate .= ':00';
@@ -134,8 +158,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
-$speakers = $pdo->query("SELECT * FROM speakers ORDER BY name")->fetchAll();
-$orgs = $pdo->query("SELECT * FROM organizers ORDER BY name")->fetchAll();
 require 'includes/header.php';
 ?>
 <h2 class="page-title mb-3"><?= $id ? 'Chỉnh sửa sự kiện' : 'Tạo sự kiện mới' ?></h2>
@@ -189,26 +211,16 @@ require 'includes/header.php';
             </select>
         </div>
         <div class="col-md-4">
-            <label class="form-label">Diễn giả</label>
-            <select class="form-select" name="speaker_id">
-                <option value="">Chưa chọn</option>
-                <?php foreach ($speakers as $s): ?>
-                    <option value="<?= (int)$s['id'] ?>" <?= $event['speaker_id'] == $s['id'] ? 'selected' : '' ?>>
-                        <?= h($s['name']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <label class="form-label">Diễn giả <span class="text-secondary">(không bắt buộc)</span></label>
+            <input type="text" class="form-control" name="speaker_name" maxlength="150"
+                   placeholder="Nhập tên diễn giả"
+                   value="<?= h($event['speaker_name'] ?? '') ?>">
         </div>
         <div class="col-md-6">
-            <label class="form-label">Ban tổ chức</label>
-            <select class="form-select" name="organizer_id">
-                <option value="">Chưa chọn</option>
-                <?php foreach ($orgs as $o): ?>
-                    <option value="<?= (int)$o['id'] ?>" <?= $event['organizer_id'] == $o['id'] ? 'selected' : '' ?>>
-                        <?= h($o['name']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <label class="form-label">Ban tổ chức <span class="text-secondary">(không bắt buộc)</span></label>
+            <input type="text" class="form-control" name="organizer_name" maxlength="150"
+                   placeholder="Nhập tên ban tổ chức"
+                   value="<?= h($event['organizer_name'] ?? '') ?>">
         </div>
         <div class="col-12">
             <label class="form-label">Mô tả sự kiện</label>
